@@ -1,0 +1,30 @@
+# Dependencies
+demo/frontend/node_modules/
+demo/backend/__pycache__/
+demo/backend/app/**/__pycache__/
+
+# Build artifacts
+demo/frontend/dist/
+demo/frontend/.vite/
+*.pyc
+
+# Data (too large for git)
+demo/data/raw/
+demo/data/preprocessed/
+*.jsonl
+
+# Environment
+.env
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Cloned repos (analysis only)
+/tmp/cuvs-repo/
+/tmp/es-repo/
