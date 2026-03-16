@@ -1,9 +1,12 @@
 import time
 
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 
 from app.models.schemas import ChatRequest, ChatResponse
+from app.models.agent_models import AgentChatRequest
 from app.services.rag import rag_query
+from app.services.phases.pipeline import run_pipeline
 
 router = APIRouter()
 
@@ -41,3 +44,17 @@ async def chat(req: ChatRequest) -> ChatResponse:
             ],
             latency={"total": 3800, "firstToken": 900},
         )
+
+
+@router.post("/agent/stream")
+async def agent_stream(req: AgentChatRequest):
+    """SSE streaming endpoint for the multi-phase agentic advisor."""
+    return StreamingResponse(
+        run_pipeline(req),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

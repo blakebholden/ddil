@@ -13,6 +13,7 @@ import { RaceDashboard } from "./components/RaceDashboard/RaceDashboard";
 import { SensorDashboard } from "./components/SensorDashboard/SensorDashboard";
 import { SearchPlayground } from "./components/SearchPlayground/SearchPlayground";
 import { RAGChat } from "./components/RAGChat/RAGChat";
+import { AgentChat } from "./components/AgentChat/AgentChat";
 import { LeafScanner } from "./components/LeafScanner/LeafScanner";
 import { SystemOverview } from "./components/SystemOverview/SystemOverview";
 import { VineyardMap } from "./components/VineyardMap/VineyardMap";
@@ -41,7 +42,7 @@ const sceneComponents: Record<Scene, React.ReactNode> = {
   vineyard: <VineyardMap />,
   sensors: <SensorDashboard />,
   search: <SearchPlayground />,
-  chat: <RAGChat />,
+  chat: <AgentChat />,
   scanner: <LeafScanner />,
   overview: <SystemOverview />,
 };
