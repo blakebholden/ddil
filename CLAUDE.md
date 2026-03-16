@@ -76,18 +76,18 @@ The ES GPU plugin (cuVS) is x86_64-only due to 3 soft gates in cuvs-java. See `C
 
 > **Read `SPARK-SETUP.md` first** — it has copy-pasteable commands for everything below.
 
-1. **Install Elasticsearch 9.x** — TWO instances on the same machine:
-   - `/opt/es-gpu` on port 9200 with `vectors.indexing.use_gpu: true`
-   - `/opt/es-cpu` on port 9201 with `vectors.indexing.use_gpu: false`
-   - Both: `discovery.type: single-node`, `xpack.security.enabled: false`
-2. **Install Ollama** + pull `llama3.1:70b` — bind to `0.0.0.0:11434`
-3. **Enable Enterprise license** on both ES instances (`POST /_license/start_trial?acknowledge=true`)
+1. **Docker Compose up** — `demo/docker-compose.yml` defines all 3 services:
+   - `es-gpu` on port 9200 with `vectors.indexing.use_gpu: true` + GPU passthrough
+   - `es-cpu` on port 9201 with `vectors.indexing.use_gpu: false` (no GPU)
+   - `ollama` on port 11434 with GPU passthrough
+   - Run: `sudo sysctl -w vm.max_map_count=262144 && docker compose up -d`
+2. **Pull Ollama models** — `docker exec ollama ollama pull llama3.1:70b && docker exec ollama ollama pull nomic-embed-text`
+3. **Apply Enterprise license** — `demo/license.json` included in repo, apply to both instances with `PUT /_license?acknowledge=true`
 4. **Run `scripts/validate-dgx-cuvs.sh`** — assess cuVS build feasibility
 5. **Create indices** — run `demo/scripts/setup-indices.sh` against both ES instances
 6. **Download & preprocess data** — run scripts in `demo/scripts/` (requires internet, do before airgap)
 7. **Bulk ingest data** — load JSONL files into both ES instances
 8. **Attempt cuVS aarch64 build** (stretch goal, see `CUVS-AARCH64-BUILD.md`)
-9. **Create systemd services** for ES + Ollama auto-start
 
 ### Framework Desktop Tasks
 1. Frontend dev server: `cd demo/frontend && npm run dev` (port 3000)

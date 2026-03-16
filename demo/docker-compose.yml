@@ -1,0 +1,102 @@
+version: "3.9"
+
+# DDIL Kit — DGX Spark services
+# Deploy on the Spark (192.168.1.20) with: docker compose up -d
+# Prerequisite: sudo sysctl -w vm.max_map_count=262144
+
+services:
+  # ── Elasticsearch GPU Instance (port 9200) ──────────────────
+  # cuVS GPU-accelerated HNSW vector indexing
+  es-gpu:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: es-gpu
+    environment:
+      - cluster.name=ddil-gpu
+      - node.name=spark-gpu
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - vectors.indexing.use_gpu=true
+      - "ES_JAVA_OPTS=-Xms16g -Xmx16g"
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - es-gpu-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - ddil-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # ── Elasticsearch CPU Instance (port 9201) ──────────────────
+  # Standard CPU HNSW — the "slow" side of the race
+  es-cpu:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: es-cpu
+    environment:
+      - cluster.name=ddil-cpu
+      - node.name=spark-cpu
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - vectors.indexing.use_gpu=false
+      - "ES_JAVA_OPTS=-Xms16g -Xmx16g"
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - es-cpu-data:/usr/share/elasticsearch/data
+    ports:
+      - "9201:9200"
+      - "9301:9300"
+    networks:
+      - ddil-net
+    restart: unless-stopped
+
+  # ── Ollama LLM Inference (port 11434) ───────────────────────
+  # GPU-accelerated: llama3.1:70b + nomic-embed-text
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - ddil-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  es-gpu-data:
+  es-cpu-data:
+  ollama-data:
+
+networks:
+  ddil-net:
+    driver: bridge
