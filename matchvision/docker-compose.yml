@@ -1,0 +1,38 @@
+version: "3.9"
+
+# MatchVision — Deploy on DGX Spark alongside ddil demo services
+# Run: docker compose up -d
+
+services:
+  vision-server:
+    build:
+      context: ./vision-server
+      dockerfile: Dockerfile
+    container_name: vision-server
+    ports:
+      - "8010:8010"
+    environment:
+      - ELASTICSEARCH_URL=http://es-gpu:9200
+      - YOLO_MODEL=yolov8x.pt
+      - CONFIDENCE_THRESHOLD=0.3
+      - DEVICE=0
+    volumes:
+      - vision-models:/app/models
+    networks:
+      - ddil-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  vision-models:
+
+networks:
+  ddil-net:
+    external: true
+    name: demo_ddil-net
