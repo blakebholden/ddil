@@ -54,7 +54,22 @@ echo "==> bundle size:"; du -sh "$WORK"
 
 echo "==> aws s3 sync → s3://$S3_BUCKET/$S3_PREFIX/"
 aws "${PROFILE_ARGS[@]}" s3 mb "s3://$S3_BUCKET" 2>/dev/null || true
-aws "${PROFILE_ARGS[@]}" s3 sync "$WORK/" "s3://$S3_BUCKET/$S3_PREFIX/" --only-show-errors
+# Retry the whole sync: already-uploaded objects are skipped, so each pass only
+# re-attempts what's missing. Survives a transient connection drop mid-file.
+export AWS_MAX_ATTEMPTS="${AWS_MAX_ATTEMPTS:-12}"   # SDK-level per-request retries
+ok=0
+for attempt in 1 2 3 4 5 6 7 8; do
+  if aws "${PROFILE_ARGS[@]}" s3 sync "$WORK/" "s3://$S3_BUCKET/$S3_PREFIX/" \
+       --only-show-errors --cli-read-timeout 0; then ok=1; break; fi
+  echo "   sync attempt $attempt hit a network error — uploaded files are skipped; retrying in 10s…"
+  sleep 10
+done
+# clean up any orphaned multipart parts from failed attempts (avoids storage cost)
+aws "${PROFILE_ARGS[@]}" s3api list-multipart-uploads --bucket "$S3_BUCKET" --prefix "$S3_PREFIX/" \
+  --query 'Uploads[].[Key,UploadId]' --output text 2>/dev/null | while read -r k u; do
+    [ -n "$u" ] && aws "${PROFILE_ARGS[@]}" s3api abort-multipart-upload --bucket "$S3_BUCKET" --key "$k" --upload-id "$u" 2>/dev/null || true
+  done
+[ "$ok" = 1 ] || { echo "❌ sync still failing after retries — re-run when the link is stable"; exit 1; }
 echo
 echo "✅ uploaded. On the kit (connected setup window) run:"
 echo "   S3_BUCKET=$S3_BUCKET AWS_PROFILE=${AWS_PROFILE:-default} AWS_REGION=${AWS_REGION:-us-east-2} bash stage-from-s3.sh"
