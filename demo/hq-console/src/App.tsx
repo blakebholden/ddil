@@ -7,57 +7,60 @@ import {
 } from './services/api'
 import './App.css'
 
-const HQ: Cluster = {
-  id: 'hq',
-  name: 'HQ — Elastic Cloud (us-east-1)',
-  region: 'CONUS',
-  type: 'cloud',
-  status: 'online',
-  endpoint: 'cloud',
-  geo: { lat: 38.95, lon: -77.45, regionName: 'N. Virginia' },
-}
-
+// The kit/edge is the always-on COORDINATOR (and the globe's connection hub, so
+// its id must be 'hq' — CesiumGlobe draws arcs from that id). The cloud is the
+// REMOTE that comes online when the box synchronises out to ECH.
 const EDGE: Cluster = {
-  id: 'edge',
-  name: 'Forward Edge Node — DDIL Kit',
+  id: 'hq', // hub id for the connection arc
+  name: 'Sovereign Edge — DDIL Kit',
   region: 'CENTCOM',
   type: 'eck',
-  status: 'offline',
+  status: 'online',
   endpoint: 'edge',
   geo: { lat: 33.31, lon: 44.36, regionName: 'Forward Operating Edge' },
+}
+
+const CLOUD: Cluster = {
+  id: 'cloud',
+  name: 'Elastic Cloud — HQ (us-east-1)',
+  region: 'CONUS',
+  type: 'cloud',
+  status: 'offline',
+  endpoint: 'cloud',
+  geo: { lat: 38.95, lon: -77.45, regionName: 'N. Virginia' },
 }
 
 type Phase = 'offline' | 'connecting' | 'online'
 
 export default function App() {
-  const [edgePhase, setEdgePhase] = useState<Phase>('offline')
+  const [cloudPhase, setCloudPhase] = useState<Phase>('offline')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<CcsSearch | null>(null)
   const [echUrl, setEchUrl] = useState<string>('')
   const [selected, setSelected] = useState<string | null>(null)
 
-  const clusters: Cluster[] = [HQ, { ...EDGE, status: edgePhase }]
+  const clusters: Cluster[] = [EDGE, { ...CLOUD, status: cloudPhase }]
 
   // initial load: config, current remote status, baseline search
   useEffect(() => {
     ccsState().then((s) => setEchUrl(s.ech_url)).catch(() => {})
-    ccsStatus().then((s) => setEdgePhase(s.connected ? 'online' : 'offline')).catch(() => {})
+    ccsStatus().then((s) => setCloudPhase(s.connected ? 'online' : 'offline')).catch(() => {})
     ccsSearch('federated').then(setResult).catch(() => {})
   }, [])
 
   const synchronise = async () => {
     setBusy(true)
-    setEdgePhase('connecting')
+    setCloudPhase('connecting')
     try {
-      // keep CONNECTING visible for a beat, then register the remote on ECH
+      // keep CONNECTING visible for a beat, then the box registers ECH as remote
       const [sync] = await Promise.all([
         ccsSynchronise(),
         new Promise((r) => setTimeout(r, 1400)),
       ])
-      setEdgePhase(sync.connected ? 'online' : 'connecting')
+      setCloudPhase(sync.connected ? 'online' : 'connecting')
       setResult(await ccsSearch('federated'))
     } catch {
-      setEdgePhase('offline')
+      setCloudPhase('offline')
     } finally {
       setBusy(false)
     }
@@ -67,14 +70,14 @@ export default function App() {
     setBusy(true)
     try {
       await ccsDisconnect()
-      setEdgePhase('offline')
+      setCloudPhase('offline')
       setResult(await ccsSearch('local'))
     } finally {
       setBusy(false)
     }
   }
 
-  const online = edgePhase === 'online'
+  const online = cloudPhase === 'online'
 
   return (
     <div className="hq-root">
@@ -82,24 +85,24 @@ export default function App() {
 
       {/* Top bar */}
       <div className="hq-topbar">
-        <div className="hq-brand">SOVEREIGN AI · HQ COMMAND</div>
-        <div className="hq-title">Cross-Cluster Search · query the edge from the cloud</div>
+        <div className="hq-brand">SOVEREIGN AI · EDGE COMMAND</div>
+        <div className="hq-title">Cross-Cluster Search · the sovereign edge federates to cloud on demand</div>
         {echUrl && <div className="hq-ech">{echUrl.replace(/^https?:\/\//, '').slice(0, 48)}</div>}
       </div>
 
       {/* Node status panel */}
       <div className="hq-panel">
-        <NodeRow name="HQ · Elastic Cloud" sub="coordinating cluster" state="online" />
-        <NodeRow name="Forward Edge · DDIL Kit" sub={`remote "edge" · ${edgePhase}`} state={edgePhase} />
+        <NodeRow name="Sovereign Edge · DDIL Kit" sub="coordinating cluster" state="online" />
+        <NodeRow name="Elastic Cloud · HQ" sub={`remote "cloud" · ${cloudPhase}`} state={cloudPhase} />
       </div>
 
       {/* Bottom control + reveal */}
       <div className="hq-control">
         {result && (
           <div className="hq-counts">
-            <Count label="Cloud" value={result.counts.cloud} cls="cloud" />
+            <Count label="Edge" value={result.counts.edge} cls="edge" />
             <span className="hq-op">+</span>
-            <Count label="Edge" value={result.counts.edge} cls={online ? 'edge' : 'dim'} />
+            <Count label="Cloud" value={result.counts.cloud} cls={online ? 'cloud' : 'dim'} />
             <span className="hq-op">=</span>
             <Count label="Visible" value={result.total} cls="total" big />
           </div>
@@ -109,7 +112,7 @@ export default function App() {
             {busy ? 'Establishing uplink…' : 'Synchronise Now'}
           </button>
         ) : (
-          <button className="hq-disc" disabled={busy} onClick={disconnect}>Disconnect edge</button>
+          <button className="hq-disc" disabled={busy} onClick={disconnect}>Disconnect cloud</button>
         )}
       </div>
     </div>

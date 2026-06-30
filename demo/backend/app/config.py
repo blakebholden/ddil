@@ -77,18 +77,24 @@ class Settings(BaseSettings):
     JINA_IMG_DIR: str = "/data/jina/images"     # 10-doc track PNGs
 
     # ── CCS edge-federation demo (adventure 4) ────────────────────────────────
-    # The querying cluster is Elastic Cloud Hosted (stateful); it adds THIS box
-    # as a remote cluster and runs cross-cluster search down into it. The backend
-    # (on the box) orchestrates the ECH cluster over the temporary uplink.
-    ECH_ES_URL: str = "https://your-deployment.es.us-east-1.aws.found.io:9243"
-    ECH_API_KEY: str | None = None              # ApiKey auth to the ECH cluster
-    CCS_REMOTE_ALIAS: str = "edge"              # remote-cluster name for the box on ECH
-    CCS_BOX_PROXY: str = "edge.ddil.example:9443"  # box transport proxy reachable from ECH
-    CCS_BOX_MODE: str = "proxy"                # proxy mode = one endpoint over the uplink
-    CCS_INDEX: str = "field-reports"           # demo index present on both clusters
-    # Edge collection (iPad scene): docs are collected + embedded on the box and
-    # written to the box's local ES — the index HQ federates into via the remote.
-    CCS_EDGE_ES_URL: str | None = None          # falls back to es_gpu_url (the box)
+    # Direction: the BOX is the CCS coordinator (it dials OUT to ECH and adds it
+    # as a remote cluster named "cloud"). "Synchronise Now" registers that remote
+    # on the box; a federated search then spans the box's edge index + ECH's
+    # cloud index. Box→ECH is outbound-only — no inbound-to-box networking.
+    ECH_ES_URL: str = "https://your-deployment.es.us-east-1.aws.found.io:9243"  # REST, for seeding the cloud index
+    ECH_API_KEY: str | None = None              # ApiKey auth to ECH (seeding)
+    CCS_INDEX: str = "field-reports"            # demo index on both clusters
+
+    # ECH registered on the box as remote "cloud" (RCS 2.0). The cross-cluster
+    # API key is pre-loaded in the box's ES keystore (cluster.remote.cloud.credentials);
+    # Synchronise Now just sets mode+proxy_address to connect/disconnect.
+    CCS_CLOUD_ALIAS: str = "cloud"
+    CCS_CLOUD_PROXY: str = "<ech-remote-host>:9400"   # ECH "remote cluster" proxy endpoint
+    CCS_CLOUD_SERVER_NAME: str | None = None          # ECH server_name for TLS SNI (from the deployment's remote params)
+
+    # Coordinator + edge collection both live on the box's local ES. The iPad
+    # scene collects + embeds field reports into CCS_INDEX here.
+    CCS_EDGE_ES_URL: str | None = None          # the box (coordinator); falls back to es_gpu_url
     CCS_EMBED_DIMS: int = 768                   # nomic-embed-text
 
     # ── Derived URLs ──────────────────────────────────────────────────────────

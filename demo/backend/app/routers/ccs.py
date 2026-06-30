@@ -84,59 +84,60 @@ async def _ensure_edge_index() -> None:
 @router.get("/state")
 async def state():
     return {
+        "coordinator": settings.ccs_edge_es_url,   # the box runs the CCS
+        "cloud_alias": settings.CCS_CLOUD_ALIAS,
+        "cloud_proxy": settings.CCS_CLOUD_PROXY,
         "ech_url": settings.ECH_ES_URL,
-        "alias": settings.CCS_REMOTE_ALIAS,
-        "box_proxy": settings.CCS_BOX_PROXY,
-        "mode": settings.CCS_BOX_MODE,
         "index": settings.CCS_INDEX,
     }
 
 
 @router.get("/status")
 async def status():
-    """Report whether the edge remote is registered + connected on ECH."""
-    r = await _ech("GET", "/_remote/info")
+    """Is the ECH 'cloud' remote registered + connected on the box?"""
+    r = await _edge("GET", "/_remote/info")
     if r.status_code >= 400:
         raise HTTPException(status_code=r.status_code, detail=r.text)
-    info = r.json()
-    edge = info.get(settings.CCS_REMOTE_ALIAS)
+    cloud = r.json().get(settings.CCS_CLOUD_ALIAS)
     return {
-        "connected": bool(edge and edge.get("connected")),
-        "registered": bool(edge),
-        "alias": settings.CCS_REMOTE_ALIAS,
-        "detail": edge or {},
+        "connected": bool(cloud and cloud.get("connected")),
+        "registered": bool(cloud),
+        "alias": settings.CCS_CLOUD_ALIAS,
+        "detail": cloud or {},
     }
 
 
 @router.post("/synchronise")
 async def synchronise():
-    """The 'Synchronise Now' action: register the box as a remote cluster on ECH
-    (proxy mode over the uplink), then report the connection."""
-    body = {
-        "persistent": {
-            f"cluster.remote.{settings.CCS_REMOTE_ALIAS}.mode": settings.CCS_BOX_MODE,
-            f"cluster.remote.{settings.CCS_REMOTE_ALIAS}.proxy_address": settings.CCS_BOX_PROXY,
-            f"cluster.remote.{settings.CCS_REMOTE_ALIAS}.skip_unavailable": True,
-        }
+    """'Synchronise Now': the box registers ECH as remote cluster 'cloud' (proxy
+    mode, outbound). The cross-cluster API key is pre-loaded in the box keystore;
+    this just sets mode + proxy_address to bring the link up."""
+    alias = settings.CCS_CLOUD_ALIAS
+    persistent: dict = {
+        f"cluster.remote.{alias}.mode": "proxy",
+        f"cluster.remote.{alias}.proxy_address": settings.CCS_CLOUD_PROXY,
+        f"cluster.remote.{alias}.skip_unavailable": True,
     }
-    r = await _ech("PUT", "/_cluster/settings", body)
+    if settings.CCS_CLOUD_SERVER_NAME:
+        persistent[f"cluster.remote.{alias}.server_name"] = settings.CCS_CLOUD_SERVER_NAME
+    r = await _edge("PUT", "/_cluster/settings", {"persistent": persistent})
     if r.status_code >= 400:
         raise HTTPException(status_code=r.status_code, detail=r.text)
-    info = await _ech("GET", "/_remote/info")
-    edge = info.json().get(settings.CCS_REMOTE_ALIAS, {}) if info.status_code < 400 else {}
-    return {"ok": True, "connected": bool(edge.get("connected")), "detail": edge}
+    info = await _edge("GET", "/_remote/info")
+    cloud = info.json().get(alias, {}) if info.status_code < 400 else {}
+    return {"ok": True, "connected": bool(cloud.get("connected")), "detail": cloud}
 
 
 @router.post("/disconnect")
 async def disconnect():
-    body = {
-        "persistent": {
-            f"cluster.remote.{settings.CCS_REMOTE_ALIAS}.mode": None,
-            f"cluster.remote.{settings.CCS_REMOTE_ALIAS}.proxy_address": None,
-            f"cluster.remote.{settings.CCS_REMOTE_ALIAS}.skip_unavailable": None,
-        }
+    alias = settings.CCS_CLOUD_ALIAS
+    persistent = {
+        f"cluster.remote.{alias}.mode": None,
+        f"cluster.remote.{alias}.proxy_address": None,
+        f"cluster.remote.{alias}.server_name": None,
+        f"cluster.remote.{alias}.skip_unavailable": None,
     }
-    r = await _ech("PUT", "/_cluster/settings", body)
+    r = await _edge("PUT", "/_cluster/settings", {"persistent": persistent})
     if r.status_code >= 400:
         raise HTTPException(status_code=r.status_code, detail=r.text)
     return {"ok": True}
@@ -148,25 +149,25 @@ async def search(
     scope: str = Query("federated", pattern="^(local|federated)$"),
     size: int = Query(20, ge=1, le=100),
 ):
-    """Run the search on ECH. scope=local hits only the cloud's own index;
-    scope=federated also spans the edge remote (edge:field-reports), so the
-    result count jumps when the box is online."""
+    """Run the search ON THE BOX (the coordinator). scope=local hits only the
+    box's edge index; scope=federated also spans the ECH remote
+    (cloud:field-reports), so the count jumps cloud-in when 'cloud' is connected."""
     idx = settings.CCS_INDEX
-    alias = settings.CCS_REMOTE_ALIAS
+    alias = settings.CCS_CLOUD_ALIAS
 
-    # Only span the edge remote when it's actually registered — otherwise ES
-    # raises no_such_remote_cluster. This lets the UI always ask for "federated"
-    # and naturally get cloud-only until "Synchronise Now" registers the box.
-    edge_registered = False
+    # Only span the cloud remote when it's registered — otherwise ES raises
+    # no_such_remote_cluster. UI can always ask "federated" and get edge-only
+    # until Synchronise Now connects ECH.
+    cloud_registered = False
     if scope == "federated":
-        info = await _ech("GET", "/_remote/info")
-        edge_registered = info.status_code < 400 and alias in info.json()
-    target = f"{idx},{alias}:{idx}" if edge_registered else idx
+        info = await _edge("GET", "/_remote/info")
+        cloud_registered = info.status_code < 400 and alias in info.json()
+    target = f"{idx},{alias}:{idx}" if cloud_registered else idx
 
     query = {"match": {"text": q}} if q.strip() else {"match_all": {}}
     body = {"size": size, "query": query, "_source": True}
 
-    r = await _ech("GET", f"/{target}/_search?ccs_minimize_roundtrips=true", body)
+    r = await _edge("GET", f"/{target}/_search?ccs_minimize_roundtrips=true", body)
     if r.status_code >= 400:
         raise HTTPException(status_code=r.status_code, detail=r.text)
     res = r.json()
@@ -175,14 +176,14 @@ async def search(
     hits = []
     for h in res.get("hits", {}).get("hits", []):
         index = h.get("_index", "")
-        # remote hits carry the cluster alias prefix, e.g. "edge:field-reports"
-        from_edge = index.startswith(f"{alias}:")
-        edge += from_edge
-        cloud += not from_edge
+        # remote (ECH) hits carry the alias prefix, e.g. "cloud:field-reports"
+        from_cloud = index.startswith(f"{alias}:")
+        cloud += from_cloud
+        edge += not from_cloud
         s = h.get("_source", {})
         hits.append({
             "id": h.get("_id"),
-            "cluster": "edge" if from_edge else "cloud",
+            "cluster": "cloud" if from_cloud else "edge",
             "score": h.get("_score"),
             "title": s.get("title") or s.get("name"),
             "text": s.get("text") or s.get("summary") or "",
@@ -192,7 +193,7 @@ async def search(
     clusters = res.get("_clusters", {})
     return {
         "scope": scope,
-        "edge_registered": edge_registered,
+        "cloud_registered": cloud_registered,
         "took_ms": res.get("took"),
         "total": res.get("hits", {}).get("total", {}).get("value", 0),
         "counts": {"cloud": cloud, "edge": edge},

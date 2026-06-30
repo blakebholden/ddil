@@ -320,37 +320,40 @@ The **Multimodal Intelligence** chooser card (`adventure === "jina"` →
   the Jina omni-small server running (Blackwell cu128 build) + staged data
   (`hires_chunks.jsonl`, `hires_images.jsonl`, `extracted_imgs/`, the 10 PNGs).
 
-## Edge Federation (Adventure 4 — CCS) — wired in, TWO-DEVICE
+## Edge Federation (Adventure 4 — CCS) — wired in, TWO-DEVICE, box-coordinates
 
-An **Elastic Cloud Hosted** cluster (stateful, AWS) adds the box as a **remote
-cluster** and runs CCS down into it. **"Synchronise Now"** registers the remote;
-results expand cloud-only → cloud + edge. Split across two screens:
+The **box is the CCS coordinator**: it dials **out** to ECH and adds it as remote
+`cloud`. **"Synchronise Now"** brings the link up; results expand **edge → edge +
+cloud** (the sovereign kit pulling cloud context). Box→ECH is outbound-only — **no
+inbound-to-box networking/tunnel/cert**, which is why this direction was chosen
+over "ECH queries the box". Two screens:
 
-- **iPad** = the kit frontend, **Edge Federation** card (`adventure === "ccs"` →
+- **iPad** = kit frontend, **Edge Federation** card (`adventure === "ccs"` →
   `components/ccs/CcsApp.tsx`) — the **Edge Collection** scene: field reports
-  collected + embedded on the Spark (768-d) into the edge `field-reports` index
-  (`POST /api/ccs/collect`), with a live feed + running totals + an HQ-link pill.
-- **HQ console** = `demo/hq-console/` — a **standalone CesiumJS globe app**
-  (adopted from `~/Desktop/CCS`, rewired to live `/api/ccs`). Two nodes
-  (HQ + edge); Synchronise Now animates the edge gray→orange→green, draws the
-  arc, and reveals the federated count. Runs on a laptop, proxies `/api` to the
-  kit backend. See `demo/hq-console/README.md`.
+  collected + embedded on the Spark (768-d) into the box's `field-reports`
+  (`POST /api/ccs/collect`), with a live feed + totals + an HQ-link pill.
+- **HQ globe** = `demo/hq-console/` — standalone CesiumJS app (adopted from
+  `~/Desktop/CCS`, rewired to `/api/ccs`). **Sovereign Edge** node = always-on
+  coordinator (green); **Elastic Cloud** node animates gray→orange→green on
+  Synchronise; arc + count reveal. Offline Natural Earth imagery (no Ion token).
+  Verified `npm install` + `tsc` + `vite build`. See `demo/hq-console/README.md`.
 
-> Serverless can't CCS into a self-managed box (its federation is Cross-Project
-> Search, Serverless↔Serverless only) — hence ECH/stateful as the coordinator.
+> Serverless can't be a CCS remote at all (only Cross-Project Search,
+> Serverless↔Serverless) — ECH/stateful is the remote.
 
 - **Backend:** `app/routers/ccs.py` → `/api/ccs/{state,status,synchronise,disconnect,search,collect,edge/stats}`.
-  Federation calls target ECH (`ECH_ES_URL`/`ECH_API_KEY`); `collect`/`edge/stats`
-  target the box's local ES (`ccs_edge_es_url`) and embed via `services/embedder`.
-  `search` checks `_remote/info` and only spans `edge:field-reports` when
-  registered (never throws `no_such_remote_cluster`). **Validated against a live
-  ECH 9.4.2 cluster** (seeded 40 cloud `field-reports` docs).
-- **On-box/cloud data:** `demo/scripts/ccs/seed-field-reports.sh` (ECH with
-  `ORIGIN=cloud`, box with `ORIGIN=edge`) — or just collect live on the iPad.
-  Setup + remote-cluster/trust networking: `demo/scripts/ccs/CCS-SETUP.md`. Real
-  ECH creds live in the gitignored `demo/backend/.env`; `.env.airgapped` has
-  placeholders. **hq-console can't be tsc/built off-box** (needs its own
-  `npm install` for cesium).
+  Everything runs against the **box ES** (`ccs_edge_es_url`); `synchronise` does
+  `PUT _cluster/settings` on the box adding `cluster.remote.cloud.{mode,proxy_address,server_name}`
+  (the cross-cluster API key is pre-loaded in the box keystore). `search` checks
+  `_remote/info` and only spans `cloud:field-reports` when registered (never
+  throws `no_such_remote_cluster`). `collect`/`edge/stats` embed via `services/embedder`.
+- **Data + trust:** `demo/scripts/ccs/seed-field-reports.sh` (ECH `ORIGIN=cloud`
+  — done; box `ORIGIN=edge`, or collect live on the iPad). Remote-cluster trust
+  (cross-cluster API key on ECH → box keystore) + env + a **Mac-local rehearsal**
+  recipe: `demo/scripts/ccs/CCS-SETUP.md`. ECH creds in gitignored `.env`;
+  `.env.airgapped` has placeholders. Cloud index seeded on live ECH 9.4.2; the
+  federation logic runs on the box, so it's verified end-to-end only at the kit
+  (or via the Mac-local rehearsal).
 
 ## Dataset staging to the kit (S3 relay)
 

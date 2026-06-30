@@ -8,7 +8,7 @@ export interface CcsStatus {
   connected: boolean; registered: boolean; alias: string;
 }
 export interface CcsSearch {
-  scope: string; edge_registered: boolean; took_ms: number; total: number;
+  scope: string; cloud_registered: boolean; took_ms: number; total: number;
   counts: { cloud: number; edge: number };
   clusters: { total?: number; successful?: number; skipped?: number };
   hits: { id: string; cluster: 'cloud' | 'edge'; title?: string; text: string }[];
