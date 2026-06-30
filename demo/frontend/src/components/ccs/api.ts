@@ -68,6 +68,50 @@ export async function disconnect(): Promise<void> {
   await fetch("/api/ccs/disconnect", { method: "POST" });
 }
 
+export interface EdgeStats {
+  count: number;
+  regions: { key: string; count: number }[];
+  classification: { key: string; count: number }[];
+  embed_dims: number;
+}
+export interface CollectResult {
+  indexed: boolean;
+  id: string;
+  embed_dims: number;
+  edge_count: number;
+  doc: { title: string; region: string; classification: string; ts: string };
+}
+
+export async function collect(report: { title: string; text: string; region?: string; classification?: string }): Promise<CollectResult> {
+  const r = await fetch("/api/ccs/collect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(report),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+export function useEdgeStats(pollMs = 0) {
+  const [stats, setStats] = useState<EdgeStats | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      const r = await fetch("/api/ccs/edge/stats");
+      if (r.ok) setStats(await r.json());
+    } catch {
+      /* offline */
+    }
+  }, []);
+  useEffect(() => {
+    refresh();
+    if (pollMs > 0) {
+      const t = setInterval(refresh, pollMs);
+      return () => clearInterval(t);
+    }
+  }, [refresh, pollMs]);
+  return { stats, refresh };
+}
+
 export function useCcsSearch() {
   const [result, setResult] = useState<CcsResult | null>(null);
   const [loading, setLoading] = useState(false);

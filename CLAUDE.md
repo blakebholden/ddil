@@ -320,28 +320,37 @@ The **Multimodal Intelligence** chooser card (`adventure === "jina"` →
   the Jina omni-small server running (Blackwell cu128 build) + staged data
   (`hires_chunks.jsonl`, `hires_images.jsonl`, `extracted_imgs/`, the 10 PNGs).
 
-## Edge Federation (Adventure 4 — CCS) — wired in
+## Edge Federation (Adventure 4 — CCS) — wired in, TWO-DEVICE
 
-The **Edge Federation** chooser card (`adventure === "ccs"` →
-`components/ccs/CcsApp.tsx`). An **Elastic Cloud Hosted** cluster (stateful, in
-AWS) adds the box as a **remote cluster** and runs cross-cluster search down into
-it. **"Synchronise Now"** registers the remote over the uplink; results expand
-cloud-only → cloud + edge (counts jump, edge rows tagged).
+An **Elastic Cloud Hosted** cluster (stateful, AWS) adds the box as a **remote
+cluster** and runs CCS down into it. **"Synchronise Now"** registers the remote;
+results expand cloud-only → cloud + edge. Split across two screens:
+
+- **iPad** = the kit frontend, **Edge Federation** card (`adventure === "ccs"` →
+  `components/ccs/CcsApp.tsx`) — the **Edge Collection** scene: field reports
+  collected + embedded on the Spark (768-d) into the edge `field-reports` index
+  (`POST /api/ccs/collect`), with a live feed + running totals + an HQ-link pill.
+- **HQ console** = `demo/hq-console/` — a **standalone CesiumJS globe app**
+  (adopted from `~/Desktop/CCS`, rewired to live `/api/ccs`). Two nodes
+  (HQ + edge); Synchronise Now animates the edge gray→orange→green, draws the
+  arc, and reveals the federated count. Runs on a laptop, proxies `/api` to the
+  kit backend. See `demo/hq-console/README.md`.
 
 > Serverless can't CCS into a self-managed box (its federation is Cross-Project
 > Search, Serverless↔Serverless only) — hence ECH/stateful as the coordinator.
 
-- **Backend:** `app/routers/ccs.py` → `/api/ccs/{state,status,synchronise,disconnect,search}`.
-  All calls target the ECH endpoint (`ECH_ES_URL`/`ECH_API_KEY`). `synchronise`
-  does `PUT _cluster/settings` to add `cluster.remote.edge.{mode,proxy_address}`;
+- **Backend:** `app/routers/ccs.py` → `/api/ccs/{state,status,synchronise,disconnect,search,collect,edge/stats}`.
+  Federation calls target ECH (`ECH_ES_URL`/`ECH_API_KEY`); `collect`/`edge/stats`
+  target the box's local ES (`ccs_edge_es_url`) and embed via `services/embedder`.
   `search` checks `_remote/info` and only spans `edge:field-reports` when
   registered (never throws `no_such_remote_cluster`). **Validated against a live
-  ECH 9.4.2 cluster** (seeded with 40 cloud `field-reports` docs).
-- **On-box/cloud data:** `demo/scripts/ccs/seed-field-reports.sh` (run against
-  ECH with `ORIGIN=cloud` and the box with `ORIGIN=edge`). Setup +
-  remote-cluster/trust networking: `demo/scripts/ccs/CCS-SETUP.md`. Real ECH
-  creds live in the gitignored `demo/backend/.env`; `.env.airgapped` has
-  placeholders only.
+  ECH 9.4.2 cluster** (seeded 40 cloud `field-reports` docs).
+- **On-box/cloud data:** `demo/scripts/ccs/seed-field-reports.sh` (ECH with
+  `ORIGIN=cloud`, box with `ORIGIN=edge`) — or just collect live on the iPad.
+  Setup + remote-cluster/trust networking: `demo/scripts/ccs/CCS-SETUP.md`. Real
+  ECH creds live in the gitignored `demo/backend/.env`; `.env.airgapped` has
+  placeholders. **hq-console can't be tsc/built off-box** (needs its own
+  `npm install` for cesium).
 
 ## TODO / Next Steps
 

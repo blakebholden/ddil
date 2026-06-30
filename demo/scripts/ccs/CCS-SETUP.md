@@ -15,6 +15,16 @@ Roles:
 - **DDIL box (`192.168.1.20:9200`)** — the **remote** (`edge`); holds edge data.
 - **App backend (on the box)** — orchestrates ECH over the uplink via `/api/ccs/*`.
 
+**Two-device demo:**
+- **HQ console** (`demo/hq-console/`, a CesiumJS globe) — runs on a laptop; the
+  *querying* side. **Synchronise Now** registers the edge remote + runs CCS; the
+  globe lights up the edge node + arc and the count expands. See its README.
+- **iPad** — runs the kit's main frontend, **Edge Federation** card → the **Edge
+  Collection** scene: field reports collected + embedded on the Spark
+  (`POST /api/ccs/collect`), writing the edge `field-reports` index that HQ
+  federates into. So edge docs can be generated live during the demo instead of
+  (or in addition to) the seed script.
+
 ## 1. Seed the demo index (`field-reports`) on BOTH clusters
 
 ```bash
@@ -64,15 +74,19 @@ curl -s 'localhost:8000/api/ccs/search?scope=federated' | python3 -m json.tool
 #   → degrades to cloud-only (edge_registered:false) until Synchronise Now
 ```
 
-## 4. Demo flow
+## 4. Demo flow (two devices)
 
-1. Open **Edge Federation**. Cloud is online; the box shows **airgapped**.
-2. Search — results are **cloud-only** (e.g. 40).
-3. Hit **Synchronise Now** → the backend registers `edge` on ECH; the link
-   animates offline → connecting → online.
-4. The same search now spans **cloud + edge** — the total jumps (e.g. 40 → 73)
-   and edge rows appear tagged `EDGE`.
-5. **Disconnect edge** removes the remote; results fall back to cloud-only.
+1. **iPad** — open **Edge Federation** → **Begin collection**. Field reports
+   stream in, each embedded on the Spark (768-d) into the edge `field-reports`
+   index. The header shows **Airgapped · collecting locally**.
+2. **HQ console (laptop globe)** — HQ online, edge **offline** (gray, no arc).
+   A search shows **cloud-only** results.
+3. Hit **Synchronise Now** on the globe → the backend registers `edge` on ECH;
+   the edge marker animates gray → **orange (connecting)** → **green (online)**,
+   the cyan arc appears, and the count jumps **cloud → cloud + edge** (the iPad's
+   collected docs are now visible to HQ).
+4. The iPad header flips to **HQ federated · streaming to command**.
+5. **Disconnect edge** on the globe removes the remote; the arc + edge docs drop.
 
 ## Notes
 

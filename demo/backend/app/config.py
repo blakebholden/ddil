@@ -86,11 +86,19 @@ class Settings(BaseSettings):
     CCS_BOX_PROXY: str = "edge.ddil.example:9443"  # box transport proxy reachable from ECH
     CCS_BOX_MODE: str = "proxy"                # proxy mode = one endpoint over the uplink
     CCS_INDEX: str = "field-reports"           # demo index present on both clusters
+    # Edge collection (iPad scene): docs are collected + embedded on the box and
+    # written to the box's local ES — the index HQ federates into via the remote.
+    CCS_EDGE_ES_URL: str | None = None          # falls back to es_gpu_url (the box)
+    CCS_EMBED_DIMS: int = 768                   # nomic-embed-text
 
     # ── Derived URLs ──────────────────────────────────────────────────────────
     @property
     def jina_es_url(self) -> str:
         return self.JINA_ES_URL or self.es_gpu_url
+
+    @property
+    def ccs_edge_es_url(self) -> str:
+        return self.CCS_EDGE_ES_URL or self.es_gpu_url
 
     @property
     def es_gpu_url(self) -> str:

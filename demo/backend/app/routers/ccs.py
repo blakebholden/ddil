@@ -17,10 +17,14 @@ GET  /api/ccs/state         what's wired (UI config card)
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.services.embedder import embed_text
 
 router = APIRouter()
 
@@ -37,6 +41,44 @@ async def _ech(method: str, path: str, json: dict | None = None) -> httpx.Respon
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.request(method, url, json=json, headers=_headers())
     return r
+
+
+def _edge_auth() -> tuple[str, str] | None:
+    if settings.ES_USER and settings.ES_PASSWORD:
+        return (settings.ES_USER, settings.ES_PASSWORD)
+    return None
+
+
+async def _edge(method: str, path: str, json: dict | None = None) -> httpx.Response:
+    """Call the box's LOCAL ES (where collected/embedded edge docs live)."""
+    url = f"{settings.ccs_edge_es_url}{path}"
+    async with httpx.AsyncClient(timeout=30, auth=_edge_auth()) as c:
+        r = await c.request(method, url, json=json, headers={"Content-Type": "application/json"})
+    return r
+
+
+_EDGE_MAPPING = {
+    "mappings": {
+        "properties": {
+            "title": {"type": "text"},
+            "text": {"type": "text"},
+            "origin": {"type": "keyword"},
+            "region": {"type": "keyword"},
+            "classification": {"type": "keyword"},
+            "ts": {"type": "date"},
+            "embedding": {
+                "type": "dense_vector", "dims": settings.CCS_EMBED_DIMS,
+                "index": True, "similarity": "cosine",
+            },
+        }
+    }
+}
+
+
+async def _ensure_edge_index() -> None:
+    r = await _edge("HEAD", f"/{settings.CCS_INDEX}")
+    if r.status_code == 404:
+        await _edge("PUT", f"/{settings.CCS_INDEX}", _EDGE_MAPPING)
 
 
 @router.get("/state")
@@ -160,4 +202,70 @@ async def search(
             "skipped": clusters.get("skipped"),
         },
         "hits": hits,
+    }
+
+
+# ─────────────── edge collection (iPad scene) ────────────────────────────────
+class FieldReport(BaseModel):
+    title: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1)
+    region: str | None = None
+    classification: str | None = None
+
+
+@router.post("/collect")
+async def collect(report: FieldReport):
+    """Collect + embed a field report ON THE BOX, writing it to the local edge
+    index that HQ federates into. This is the iPad/edge half of the demo: data
+    is generated at the edge and vectorised on the Spark, disconnected."""
+    await _ensure_edge_index()
+    try:
+        vec = await embed_text(report.text)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"edge embed failed: {e}")
+
+    doc = {
+        "title": report.title,
+        "text": report.text,
+        "origin": "edge",
+        "region": report.region or "FIELD",
+        "classification": report.classification or "U",
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "embedding": vec,
+    }
+    r = await _edge("POST", f"/{settings.CCS_INDEX}/_doc?refresh=true", doc)
+    if r.status_code >= 400:
+        raise HTTPException(status_code=r.status_code, detail=r.text)
+
+    cnt = await _edge("GET", f"/{settings.CCS_INDEX}/_count")
+    count = cnt.json().get("count", 0) if cnt.status_code < 400 else None
+    return {
+        "indexed": True,
+        "id": r.json().get("_id"),
+        "embed_dims": len(vec),
+        "edge_count": count,
+        "doc": {k: doc[k] for k in ("title", "region", "classification", "ts")},
+    }
+
+
+@router.get("/edge/stats")
+async def edge_stats():
+    """Running totals for the edge collection scene."""
+    body = {"size": 0, "track_total_hits": True, "aggs": {
+        "regions": {"terms": {"field": "region", "size": 10}},
+        "classification": {"terms": {"field": "classification", "size": 6}},
+    }}
+    r = await _edge("POST", f"/{settings.CCS_INDEX}/_search", body)
+    if r.status_code == 404:
+        return {"count": 0, "regions": [], "classification": [], "embed_dims": settings.CCS_EMBED_DIMS}
+    if r.status_code >= 400:
+        raise HTTPException(status_code=r.status_code, detail=r.text)
+    res = r.json()
+    aggs = res.get("aggregations", {})
+    buckets = lambda n: [{"key": b["key"], "count": b["doc_count"]} for b in aggs.get(n, {}).get("buckets", [])]
+    return {
+        "count": res.get("hits", {}).get("total", {}).get("value", 0),
+        "regions": buckets("regions"),
+        "classification": buckets("classification"),
+        "embed_dims": settings.CCS_EMBED_DIMS,
     }
