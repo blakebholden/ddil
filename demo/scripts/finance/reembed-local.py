@@ -27,6 +27,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import sys
 import time
@@ -55,8 +56,9 @@ def embed_batch(ollama: str, model: str, texts: list[str], retries: int = 6) -> 
 
 
 def iter_docs(src: str):
-    """Yield doc dicts from a bulk-NDJSON, skipping the action lines."""
-    with open(src, "r", errors="replace") as f:
+    """Yield doc dicts from a bulk-NDJSON (plain or .gz), skipping action lines."""
+    opener = gzip.open if src.endswith(".gz") else open
+    with opener(src, "rt", errors="replace") as f:
         while True:
             action = f.readline()
             if not action:
