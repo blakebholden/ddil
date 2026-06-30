@@ -17,6 +17,12 @@ demo/data/preprocessed/
 .env
 *.env.local
 
+# Elastic license — never commit. Place yours at demo/license.local.json
+# (or any path you pass to demo/scripts/apply-license.sh).
+demo/license.json
+demo/license.local.json
+*.elastic-license.json
+
 # OS
 .DS_Store
 Thumbs.db

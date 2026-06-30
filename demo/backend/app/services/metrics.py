@@ -32,11 +32,28 @@ class PathMetrics:
         if len(self.history) > 120:
             self.history = self.history[-120:]
 
+    @property
+    def phase(self) -> str:
+        """Derive the frontend-facing phase the UI's PhasePill expects."""
+        if self.complete:
+            return "complete"
+        if self.merge_phase:
+            return "force_merging"
+        if self.start_time:
+            return "ingesting"
+        return "idle"
+
     def to_dict(self) -> dict:
         return {
             "docsIndexed": self.docs_indexed,
             "totalDocs": self.total_docs,
             "throughput": round(self.throughput, 1),
+            "phase": self.phase,
+            # The UI reads ingestMs + forceMergeMs; keep mergeTimeMs for any
+            # other consumer. Ingest time is the loop wall-clock (elapsed),
+            # force-merge is the dedicated merge timing.
+            "ingestMs": round(self.elapsed_ms),
+            "forceMergeMs": round(self.merge_time_ms, 1),
             "mergeTimeMs": round(self.merge_time_ms, 1),
             "cpuPercent": self.cpu_percent,
             "gpuPercent": self.gpu_percent,
@@ -58,10 +75,17 @@ class RaceMetrics:
         cpu_elapsed = self.cpu.elapsed_ms / 1000 if self.cpu.elapsed_ms else 1
         speedup = cpu_elapsed / gpu_elapsed if gpu_elapsed > 0 else 0
 
+        gpu_merge = self.gpu.merge_time_ms or 1
+        cpu_merge = self.cpu.merge_time_ms or 1
+
         return {
             "gpu": self.gpu.to_dict(),
             "cpu": self.cpu.to_dict(),
             "speedup": round(speedup, 1),
+            # The completion summary reads ingest + force-merge speedups
+            # separately; ingest tracks wall-clock, force-merge the merge step.
+            "ingestSpeedup": round(cpu_elapsed / gpu_elapsed, 1) if gpu_elapsed > 0 else 0,
+            "forceMergeSpeedup": round(cpu_merge / gpu_merge, 1) if gpu_merge > 0 else 0,
             "timeSaved": round(max(0, cpu_elapsed - gpu_elapsed) * 1000),
             "recallGpu": 98.9,  # Will be computed post-race
             "recallCpu": 98.7,

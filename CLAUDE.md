@@ -218,6 +218,9 @@ All phases stream SSE events to frontend. Phases 2-4 run sequentially with heart
 | SearchPlayground | `src/components/SearchPlayground/` | Hybrid search (BM25/semantic/RRF) |
 | LeafScanner | `src/components/LeafScanner/` | Image similarity search |
 | SystemOverview | `src/components/SystemOverview/` | Hardware + service status |
+| **SecDeck (SEC adventure)** | `src/components/sec/` | 8-chapter SEC Findings slide deck (ported from `demo/race-demo/`); rendered when `adventure === "sec"` |
+| **JinaApp (Multimodal adventure)** | `src/components/jina/` | Multimodal + DLS Need-to-Know; rendered when `adventure === "jina"`. Scenes: `MultimodalSearch` (opener), `NeedToKnow` (research papers + DLS + generative analyst) |
+| **CcsApp (Edge Federation adventure)** | `src/components/ccs/` | CCS reveal: ECH cloud cluster + box remote; "Synchronise Now" expands results cloud→cloud+edge. Rendered when `adventure === "ccs"` |
 
 ### App Context (shared state)
 - `selectedBlockId` — currently selected block (flows to agent chat)
@@ -272,12 +275,75 @@ DATA_DIR = /data                          (container mount from ./data/preproces
 
 ---
 
-## TODO / Next Steps
+## SEC Findings (Adventure 2) — wired in
 
-### SEC Adventure (Adventure 2)
-- EDGAR dataset subset needed (user to provide)
-- Same app shell, different theme/data/prompts
-- Need: SEC-specific Agent Builder tools, index mappings, data generator
+The **SEC Findings** chooser card launches the full 8-chapter presenter **slide
+deck** (GPU race + semantic search + agentic RAG over S&P 500 10-K filings),
+adopted from the standalone `demo/race-demo/` app into the main frontend at
+`demo/frontend/src/components/sec/` (entry `SecDeck.tsx`; `App.tsx` renders it
+when `adventure === "sec"`; `Esc` exits).
+
+- **Backend:** `app/routers/finance.py` → `/api/finance/{search,sectors,agent/chat,agent/state}`.
+  Embedding is pluggable via `EMBED_BACKEND`: `bedrock` (Cohere v4, 1536-d, bench)
+  or `ollama` (local `nomic-embed-text`, 768-d, airgapped). `boto3` is lazy.
+- **No hardcoded hosts:** every Kibana link + cURL/Python host comes from
+  `/api/finance/agent/state` via `components/sec/lib/financeConfig.tsx`, so the
+  same deck runs on the bench or the airgapped box by swapping `.env`.
+- **Airgapped data (run on box):** `demo/scripts/finance/` — `reembed-local.py`,
+  `setup-index-local.sh` (768-d cosine), `provision-connector-local.sh`
+  (Kibana→Ollama LLM connector), `provision-agent-local.sh`,
+  `provision-kibana-local.sh`, `run-all.sh`. Env: `demo/backend/.env.airgapped`.
+  Guide: `demo/scripts/finance/SEC-AIRGAP-SETUP.md`. SEC corpus is gitignored in
+  `bench-aws/finance/`; copy `sec_10k_bulk.ndjson` to the box and re-embed.
+
+## Multimodal + DLS (Adventure 3 — HPE/Jina) — wired in
+
+The **Multimodal Intelligence** chooser card (`adventure === "jina"` →
+`components/jina/JinaApp.tsx`). Two scenes:
+- **Search by Image** (opener) — `jina-multimodal` index (768-d); "type words,
+  get pictures" via one native ES kNN with `query_vector_builder` (ES embeds the
+  query through the on-box omni inference endpoint).
+- **Need-to-Know** (main) — `pmc-unstructured` index (1024-d bbq_hnsw); 509
+  research papers under a fictional **document-level-security** model. Hybrid RRF
+  (BM25+kNN) with a DLS pre-filter, cross-modal figure strip, and a generative
+  **Research Paper Analyst** — all scoped to the selected analyst's clearance.
+
+- **Backend:** `app/routers/jina.py` → `/api/jina/{analysts,state,multimodal/search,search,analyst/answer,figimg,pdf,image}`.
+  DLS model in `app/services/jina_dls.py` (clearance hierarchy U<CUI<C<S<TS,
+  4 personas, `terms_set` subset rule for compartments, NOFORN gating). Generative
+  answer reuses `services/llm.py` (gpt-oss via Ollama), grounded only in
+  DLS-visible passages. Embeds via the local Jina omni server (`JINA_OMNI_URL`).
+- **On-box data (run on box):** `demo/scripts/jina/` — `setup-indices-local.sh`
+  (both indices + ES inference endpoint + caption pipeline), `ingest-multimodal.py`,
+  `ingest-pmc.py` + `markings.py` (deterministic DLS markings). Env additions in
+  `demo/backend/.env.airgapped`. Guide: `demo/scripts/jina/JINA-SETUP.md`. Needs
+  the Jina omni-small server running (Blackwell cu128 build) + staged data
+  (`hires_chunks.jsonl`, `hires_images.jsonl`, `extracted_imgs/`, the 10 PNGs).
+
+## Edge Federation (Adventure 4 — CCS) — wired in
+
+The **Edge Federation** chooser card (`adventure === "ccs"` →
+`components/ccs/CcsApp.tsx`). An **Elastic Cloud Hosted** cluster (stateful, in
+AWS) adds the box as a **remote cluster** and runs cross-cluster search down into
+it. **"Synchronise Now"** registers the remote over the uplink; results expand
+cloud-only → cloud + edge (counts jump, edge rows tagged).
+
+> Serverless can't CCS into a self-managed box (its federation is Cross-Project
+> Search, Serverless↔Serverless only) — hence ECH/stateful as the coordinator.
+
+- **Backend:** `app/routers/ccs.py` → `/api/ccs/{state,status,synchronise,disconnect,search}`.
+  All calls target the ECH endpoint (`ECH_ES_URL`/`ECH_API_KEY`). `synchronise`
+  does `PUT _cluster/settings` to add `cluster.remote.edge.{mode,proxy_address}`;
+  `search` checks `_remote/info` and only spans `edge:field-reports` when
+  registered (never throws `no_such_remote_cluster`). **Validated against a live
+  ECH 9.4.2 cluster** (seeded with 40 cloud `field-reports` docs).
+- **On-box/cloud data:** `demo/scripts/ccs/seed-field-reports.sh` (run against
+  ECH with `ORIGIN=cloud` and the box with `ORIGIN=edge`). Setup +
+  remote-cluster/trust networking: `demo/scripts/ccs/CCS-SETUP.md`. Real ECH
+  creds live in the gitignored `demo/backend/.env`; `.env.airgapped` has
+  placeholders only.
+
+## TODO / Next Steps
 
 ### Enhancements
 - Elastic Workflows integration (YAML-based automation, tech preview in 9.3)

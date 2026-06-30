@@ -21,6 +21,9 @@ import { LeafScanner } from "./components/LeafScanner/LeafScanner";
 import { SystemOverview } from "./components/SystemOverview/SystemOverview";
 import { VineyardMap } from "./components/VineyardMap/VineyardMap";
 import { Dashboard } from "./components/Dashboard/Dashboard";
+import { SecDeck } from "./components/sec/SecDeck";
+import { JinaApp } from "./components/jina/JinaApp";
+import { CcsApp } from "./components/ccs/CcsApp";
 
 type Scene =
   | "dashboard"
@@ -78,7 +81,7 @@ const sceneComponents: Record<Scene, React.ReactNode> = {
 };
 
 export default function App() {
-  const [adventure, setAdventure] = useState<"vineyard" | "sec" | null>(null);
+  const [adventure, setAdventure] = useState<"vineyard" | "sec" | "jina" | "ccs" | null>(null);
   const [showArch, setShowArch] = useState(false);
   const [showRaceIntro, setShowRaceIntro] = useState(false);
   const [showRace, setShowRace] = useState(false);
@@ -124,12 +127,26 @@ export default function App() {
     return (
       <AdventureChooser
         onChoose={(a) => {
-          if (a === "sec") return; // Coming soon
           setAdventure(a);
-          setShowArch(true); // Show architecture first
+          if (a === "vineyard") setShowArch(true); // vineyard shows architecture first
         }}
       />
     );
+  }
+
+  // SEC Findings adventure = the full presenter slide deck (ported race-demo)
+  if (adventure === "sec") {
+    return <SecDeck onExit={resetDemo} />;
+  }
+
+  // Multimodal + DLS adventure (HPE/Jina)
+  if (adventure === "jina") {
+    return <JinaApp onExit={resetDemo} />;
+  }
+
+  // CCS edge-federation adventure
+  if (adventure === "ccs") {
+    return <CcsApp onExit={resetDemo} />;
   }
 
   // Show architecture overview

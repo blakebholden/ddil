@@ -5,3 +5,7 @@ httpx==0.27.0
 pydantic-settings==2.5.0
 python-multipart==0.0.9
 websockets==13.0
+anyio>=4.0.0
+# Bedrock query-embedding (EMBED_BACKEND="bedrock", bench only). Not required
+# for airgapped deploys (EMBED_BACKEND="ollama").
+boto3==1.35.0

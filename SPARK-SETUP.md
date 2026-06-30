@@ -182,20 +182,28 @@ docker exec ollama ollama list
 
 ## Task 4: Enable Enterprise License
 
-The GPU indexing feature (`vectors.indexing.use_gpu`) and other advanced features require an Enterprise license. A license file is included in the repo at `demo/license.json`.
+The GPU indexing feature (`vectors.indexing.use_gpu`) and other advanced features require an **Enterprise** license. **The license is no longer in the repo** — its `signature` field is the credential, and the previously-committed file should be considered exposed (the repo is public). Get a fresh single-cluster Enterprise license from your Elastic contact and place it at `demo/license.local.json` (gitignored).
 
-**Apply the enterprise license to BOTH instances:**
+> A common gotcha: Elastic also ships **multi-cluster bundle** licenses (recognizable by a `cluster_licenses[]` array inside `license`). Those are for ECE / orchestration, not for direct `PUT /_license` on a single cluster — and they wrap a *Platinum* inner license under an *Enterprise* outer entitlement, so even if you extracted the inner one you'd lose `vectors.indexing.use_gpu`. **Ask for a single-cluster Enterprise license** (no `cluster_licenses` wrapper).
+
+**Apply with the helper script** (runs the format check + posts to both instances with `?acknowledge=true`):
 
 ```bash
-# GPU instance
-curl -s -X PUT "http://localhost:9200/_license?acknowledge=true" \
-  -H "Content-Type: application/json" \
-  -d @/path/to/ddil/demo/license.json | python3 -m json.tool
+# Run on the Spark itself
+./demo/scripts/apply-license.sh
 
-# CPU instance
-curl -s -X PUT "http://localhost:9201/_license?acknowledge=true" \
-  -H "Content-Type: application/json" \
-  -d @/path/to/ddil/demo/license.json | python3 -m json.tool
+# Or from the Framework, hitting the Spark over the network
+./demo/scripts/apply-license.sh ./demo/license.local.json 192.168.1.20
+```
+
+Or by hand:
+
+```bash
+for port in 9200 9201; do
+  curl -s -X PUT "http://localhost:$port/_license?acknowledge=true" \
+    -H "Content-Type: application/json" \
+    --data-binary @demo/license.local.json | python3 -m json.tool
+done
 ```
 
 Verify:
@@ -205,10 +213,11 @@ curl -s "http://localhost:9200/_license" | python3 -m json.tool
 curl -s "http://localhost:9201/_license" | python3 -m json.tool
 ```
 
-> **Fallback:** If the license file doesn't work, start a 30-day trial instead:
+> **Fallback (no license):** start a 30-day Enterprise trial — same features, no file needed:
 > ```bash
-> curl -s -X POST "http://localhost:9200/_license/start_trial?acknowledge=true"
-> curl -s -X POST "http://localhost:9201/_license/start_trial?acknowledge=true"
+> for port in 9200 9201; do
+>   curl -s -X POST "http://localhost:$port/_license/start_trial?acknowledge=true"
+> done
 > ```
 
 ## Task 5: Create Elasticsearch Indices

@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+/* SEC / NVIDIA deck theme tokens (ported from race-demo) — chapters reference
+   these via arbitrary values like text-[var(--color-elastic)]. */
+@theme {
+  --color-elastic: #00bfb3;
+  --color-elastic-dark: #017d77;
+  --color-nvidia: #76b900;
+}
+
+/* Markdown styling for the Jina Research Paper Analyst answer */
+.prose-jina { color: #cbd5e1; font-size: 0.875rem; line-height: 1.65; }
+.prose-jina p { margin: 0 0 0.75rem; }
+.prose-jina h1, .prose-jina h2, .prose-jina h3 { color: #e2e8f0; font-weight: 600; margin: 1rem 0 0.5rem; }
+.prose-jina ul, .prose-jina ol { margin: 0 0 0.75rem; padding-left: 1.25rem; }
+.prose-jina li { margin: 0.2rem 0; }
+.prose-jina strong { color: #f1f5f9; }
+.prose-jina code { background: rgba(148,163,184,0.15); padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-size: 0.8em; }
+.prose-jina a { color: #c4b5fd; text-decoration: underline; }
+.prose-jina table { border-collapse: collapse; margin: 0.5rem 0; font-size: 0.8rem; }
+.prose-jina th, .prose-jina td { border: 1px solid #334155; padding: 0.3rem 0.5rem; text-align: left; }

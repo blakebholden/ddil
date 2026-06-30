@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
-import { Grape, Landmark, RotateCcw } from "lucide-react";
+import { Grape, Landmark, ScanSearch, Network } from "lucide-react";
 
 interface Props {
-  onChoose: (adventure: "vineyard" | "sec") => void;
+  onChoose: (adventure: "vineyard" | "sec" | "jina" | "ccs") => void;
 }
 
 export function AdventureChooser({ onChoose }: Props) {
@@ -34,7 +34,7 @@ export function AdventureChooser({ onChoose }: Props) {
       </motion.div>
 
       {/* Adventure Cards */}
-      <div className="flex gap-8 relative z-10">
+      <div className="flex gap-6 relative z-10 flex-wrap justify-center max-w-5xl">
         {/* Vineyard */}
         <motion.button
           initial={{ opacity: 0, x: -30 }}
@@ -110,8 +110,88 @@ export function AdventureChooser({ onChoose }: Props) {
               AI Compliance Analyst &middot; Agent Builder
             </div>
           </div>
-          <div className="mt-6 text-blue-400 text-sm font-medium group-hover:translate-x-1 transition-transform opacity-50">
-            Coming soon
+          <div className="mt-6 text-blue-400 text-sm font-medium group-hover:translate-x-1 transition-transform">
+            Start demo &rarr;
+          </div>
+        </motion.button>
+
+        {/* Multimodal + DLS (HPE / Jina) */}
+        <motion.button
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          whileHover={{ scale: 1.03, y: -4 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onChoose("jina")}
+          className="w-80 bg-gradient-to-b from-slate-900 to-slate-900/60 border border-violet-500/20 hover:border-violet-500/50 rounded-2xl p-8 text-left transition-all group"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-violet-500/10 flex items-center justify-center mb-6 group-hover:bg-violet-500/20 transition-colors">
+            <ScanSearch size={36} className="text-violet-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            Multimodal Intelligence
+          </h2>
+          <p className="text-sm text-slate-400 mb-4">
+            Search images by typing words, then investigate a classified research
+            corpus as four analysts — where document-level security enforces
+            need-to-know on every result.
+          </p>
+          <div className="space-y-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+              Jina omni embeddings &middot; text + image, one space
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+              509 papers &middot; hybrid RRF &middot; cross-modal figures
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+              Document-level security &middot; 4 clearance personas
+            </div>
+          </div>
+          <div className="mt-6 text-violet-400 text-sm font-medium group-hover:translate-x-1 transition-transform">
+            Start demo &rarr;
+          </div>
+        </motion.button>
+
+        {/* CCS edge federation */}
+        <motion.button
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          whileHover={{ scale: 1.03, y: -4 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onChoose("ccs")}
+          className="w-80 bg-gradient-to-b from-slate-900 to-slate-900/60 border border-cyan-500/20 hover:border-cyan-500/50 rounded-2xl p-8 text-left transition-all group"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center mb-6 group-hover:bg-cyan-500/20 transition-colors">
+            <Network size={36} className="text-cyan-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            Edge Federation
+          </h2>
+          <p className="text-sm text-slate-400 mb-4">
+            The cloud can&rsquo;t see the airgapped box — until you bring it online.
+            Hit <span className="text-cyan-300">Synchronise Now</span> and watch a
+            cloud search reach down into the edge over cross-cluster search.
+          </p>
+          <div className="space-y-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+              Elastic Cloud Hosted &middot; coordinating cluster
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+              DDIL box as a remote &middot; CCS over the uplink
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+              Results expand cloud &rarr; cloud + edge, live
+            </div>
+          </div>
+          <div className="mt-6 text-cyan-400 text-sm font-medium group-hover:translate-x-1 transition-transform">
+            Start demo &rarr;
           </div>
         </motion.button>
       </div>
