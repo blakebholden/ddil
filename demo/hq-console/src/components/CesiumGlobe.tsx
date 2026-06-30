@@ -3,13 +3,12 @@
  * Renders the 3D globe with regional cluster markers
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Viewer,
   Cartesian3,
   Color,
   VerticalOrigin,
-  HeightReference,
   Entity,
   Ion,
   HorizontalOrigin,
@@ -214,15 +213,15 @@ export const CesiumGlobe: React.FC<CesiumGlobeProps> = ({
         entities.set(cluster.id, entity);
         console.log(`✓ Created marker for ${cluster.name}`);
       } else {
-        // Update existing entity
-        if (entity.position) {
-          entity.position.setValue(position);
-        }
+        // Update existing entity. These are Cesium ConstantProperty instances at
+        // runtime (they expose setValue), but the static types are the base
+        // Property, so cast to satisfy tsc.
+        (entity.position as any)?.setValue(position);
         if (entity.billboard) {
-          entity.billboard.scale.setValue(markerScale);
-          entity.billboard.color?.setValue(color); // reflect status changes live
+          (entity.billboard.scale as any)?.setValue(markerScale);
+          (entity.billboard.color as any)?.setValue(color); // reflect status changes live
         }
-        entity.description = createClusterDescription(cluster);
+        entity.description = createClusterDescription(cluster) as any;
       }
     });
   }, [clusters, selectedCluster]);
@@ -282,7 +281,7 @@ export const CesiumGlobe: React.FC<CesiumGlobeProps> = ({
 
     const viewer = viewerRef.current;
 
-    const handler = viewer.selectedEntityChanged.addEventListener((entity: Entity | undefined) => {
+    const removeListener = viewer.selectedEntityChanged.addEventListener((entity: Entity | undefined) => {
       if (entity && onClusterClick) {
         const cluster = clusters.find(c => c.id === entity.id);
         if (cluster) {
@@ -292,7 +291,7 @@ export const CesiumGlobe: React.FC<CesiumGlobeProps> = ({
     });
 
     return () => {
-      // Cleanup handler if needed
+      removeListener();
     };
   }, [clusters, onClusterClick]);
 
