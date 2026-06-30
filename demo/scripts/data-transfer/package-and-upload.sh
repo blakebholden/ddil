@@ -22,28 +22,33 @@ SEC_NDJSON="${SEC_NDJSON:-$DDIL/bench-aws/finance/sec_10k_bulk.ndjson}"
 JINA="${JINA:-$HOME/Desktop/Jina/demo-multimodal}"
 
 WORK="${WORK:-$DDIL/demo/scripts/data-transfer/dist}"
-rm -rf "$WORK"; mkdir -p "$WORK/sec" "$WORK/jina/scale"
+mkdir -p "$WORK/sec" "$WORK/jina/scale"   # idempotent: existing bundles are reused
 
-sha() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+# checksum command (xargs needs a real binary, not a shell function)
+if command -v sha256sum >/dev/null; then SHA=(sha256sum); else SHA=(shasum -a 256); fi
 
-echo "==> SEC: gzip $(du -h "$SEC_NDJSON" | cut -f1) ndjson → ~⅓ size"
-gzip -c "$SEC_NDJSON" > "$WORK/sec/sec_10k_bulk.ndjson.gz"
+if [ -s "$WORK/sec/sec_10k_bulk.ndjson.gz" ]; then
+  echo "==> SEC: gzip already present, skipping"
+else
+  echo "==> SEC: gzip $(du -h "$SEC_NDJSON" | cut -f1) ndjson → ~⅓ size"
+  gzip -c "$SEC_NDJSON" > "$WORK/sec/sec_10k_bulk.ndjson.gz"
+fi
 
 echo "==> Jina: jsonl + manifest (small, copied as-is)"
 cp "$JINA/scale/hires_chunks.jsonl" "$JINA/scale/hires_images.jsonl" "$WORK/jina/scale/"
 cp "$JINA/manifest.json" "$WORK/jina/"
 
 echo "==> Jina: tar the image dirs (jpg/png don't gzip, so plain tar for one-file transfer)"
-tar -C "$JINA" -cf "$WORK/jina/images.tar" images
-tar -C "$JINA/scale" -cf "$WORK/jina/scale/extracted_imgs.tar" extracted_imgs
+[ -s "$WORK/jina/images.tar" ] || tar -C "$JINA" -cf "$WORK/jina/images.tar" images
+[ -s "$WORK/jina/scale/extracted_imgs.tar" ] || tar -C "$JINA/scale" -cf "$WORK/jina/scale/extracted_imgs.tar" extracted_imgs
 
 if [ "${INCLUDE_PDFS:-0}" = "1" ]; then
   echo "==> Jina: samples/ PDFs (optional, 1.5 GB)"
-  tar -C "$JINA/scale" -cf "$WORK/jina/scale/samples.tar" samples
+  [ -s "$WORK/jina/scale/samples.tar" ] || tar -C "$JINA/scale" -cf "$WORK/jina/scale/samples.tar" samples
 fi
 
 echo "==> checksums"
-( cd "$WORK" && find . -type f ! -name CHECKSUMS.txt -print0 | xargs -0 sha > CHECKSUMS.txt )
+( cd "$WORK" && find . -type f ! -name CHECKSUMS.txt -print0 | xargs -0 "${SHA[@]}" > CHECKSUMS.txt )
 cat "$WORK/CHECKSUMS.txt"
 echo "==> bundle size:"; du -sh "$WORK"
 
