@@ -12,6 +12,9 @@ import {
   Entity,
   Ion,
   HorizontalOrigin,
+  ImageryLayer,
+  TileMapServiceImageryProvider,
+  buildModuleUrl,
 } from 'cesium';
 import type { Cluster } from '../types';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
@@ -103,11 +106,17 @@ export const CesiumGlobe: React.FC<CesiumGlobeProps> = ({
     if (!cesiumContainer.current || viewerRef.current) return;
 
     const viewer = new Viewer(cesiumContainer.current, {
+      // Bundled offline Natural Earth II imagery — no Cesium Ion token, no
+      // internet (airgap-friendly). vite-plugin-cesium copies these assets.
+      baseLayer: ImageryLayer.fromProviderAsync(
+        TileMapServiceImageryProvider.fromUrl(buildModuleUrl('Assets/Textures/NaturalEarthII')),
+        {},
+      ),
       animation: false,
-      baseLayerPicker: true, // Enable imagery/terrain selection
+      baseLayerPicker: false, // picker pulls Ion catalog — off for airgap
       fullscreenButton: true,
       vrButton: false,
-      geocoder: true, // Enable location search
+      geocoder: false,        // geocoder needs Ion — off for airgap
       homeButton: true,
       infoBox: true,
       sceneModePicker: true, // Enable 2D/3D/Columbus view switching
