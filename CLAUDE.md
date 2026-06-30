@@ -352,6 +352,20 @@ results expand cloud-only → cloud + edge. Split across two screens:
   placeholders. **hq-console can't be tsc/built off-box** (needs its own
   `npm install` for cesium).
 
+## Dataset staging to the kit (S3 relay)
+
+The SEC + Jina datasets are too big for git (2.1 GB SEC file) and the kit is
+airgapped, so they move via S3: `demo/scripts/data-transfer/`.
+- `package-and-upload.sh` (Mac) — gzip/tar + checksum + `aws s3 sync` up.
+- `presign.sh` (Mac) — write `urls.txt`: 7-day presigned HTTPS links.
+- **`urls.txt` is committed** so the kit gets the links on `git pull` (no scp).
+  It holds time-limited read URLs to the private bucket — **delete the bucket
+  after staging** to expire them; re-run `presign.sh` if they lapse.
+- `stage-from-urls.sh` (kit) — `curl` the links (NO AWS CLI needed), verify
+  SHA256, place under `/data` for the SEC/Jina ingests. Run on the kit:
+  `cd demo/scripts/data-transfer && DATA_ROOT=/data bash stage-from-urls.sh`.
+- Full guide: `demo/scripts/data-transfer/DATA-TRANSFER.md`.
+
 ## TODO / Next Steps
 
 ### Enhancements
